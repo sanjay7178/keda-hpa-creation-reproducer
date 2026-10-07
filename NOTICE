@@ -1,5 +1,2 @@
 This reproducer includes kube-burner benchmark workload files and utilities
 from https://github.com/kube-burner/kube-burner, licensed under Apache-2.0.
-The original experiment used a local merge of upstream revision
-69cca726f3487cd134f7ae26d5375dd4f9428807. The accompanying core patch preserves
-two authorization-error handling changes from that local merge.
