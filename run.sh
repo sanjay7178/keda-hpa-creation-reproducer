@@ -53,7 +53,7 @@ if [[ -z ${KUBE_BURNER_BIN:-} ]]; then
   fi
 fi
 [[ -x ${KUBE_BURNER_BIN:-} ]] || {
-  printf 'error: install kube-burner with ./scripts/install-kube-burner.sh\n' >&2
+  printf 'error: download kube-burner from https://github.com/kube-burner/kube-burner/releases and set KUBE_BURNER_BIN\n' >&2
   exit 1
 }
 if [[ ${ALLOW_KEDA_RESET:-false} != true ]]; then
