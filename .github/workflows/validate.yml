@@ -1,0 +1,23 @@
+name: Validate reproducer
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  local-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shell syntax and lint
+        run: |
+          while IFS= read -r script; do
+            bash -n "$script"
+            shellcheck "$script"
+          done < <(git ls-files '*.sh')
+      - name: Python syntax and CLI help
+        run: |
+          python3 -m py_compile \
+            examples/workloads/keda-scaler-comparison/build-grafana-dashboard.py \
+            examples/workloads/keda-scaler-comparison/plot-results.py
+          ./run.sh --help

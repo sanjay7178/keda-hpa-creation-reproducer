@@ -1,0 +1,27 @@
+diff --git a/pkg/burner/patch.go b/pkg/burner/patch.go
+index 4007d14b..c4751c0b 100644
+--- a/pkg/burner/patch.go
++++ b/pkg/burner/patch.go
+@@ -88,7 +88,7 @@ func patchHandler(ctx context.Context, ex *JobExecutor, obj *object, originalIte
+ 	}
+ 	if err != nil {
+ 		if errors.IsForbidden(err) {
+-			log.Fatalf("Authorization error patching %s/%s: %s", originalItem.GetKind(), originalItem.GetName(), err)
++			log.Errorf("Authorization error patching %s/%s: %s", originalItem.GetKind(), originalItem.GetName(), err)
+ 		} else {
+ 			log.Errorf("Error patching object %s/%s in namespace %s: %s", originalItem.GetKind(),
+ 				originalItem.GetName(), ns, err)
+diff --git a/pkg/util/namespaces.go b/pkg/util/namespaces.go
+index 42b57c91..50df5b36 100644
+--- a/pkg/util/namespaces.go
++++ b/pkg/util/namespaces.go
+@@ -33,9 +33,6 @@ func CreateNamespace(clientSet kubernetes.Interface, name string, nsLabels map[s
+ 	}
+ 	return RetryWithExponentialBackOff(func() (done bool, err error) {
+ 		_, err = clientSet.CoreV1().Namespaces().Create(context.TODO(), &ns, metav1.CreateOptions{})
+-		if errors.IsForbidden(err) {
+-			log.Fatalf("authorization error creating namespace %s: %s", ns.Name, err)
+-		}
+ 		if errors.IsAlreadyExists(err) {
+ 			log.Debugf("Namespace %s already exists", ns.Name)
+ 			nsSpec, _ := clientSet.CoreV1().Namespaces().Get(context.TODO(), name, metav1.GetOptions{})

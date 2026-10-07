@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: redis-load-{{ .Iteration }}
+spec:
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: load
+          image: redis:7.4.5-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-ceu"]
+          args:
+            - |
+              until redis-cli -h redis ping; do sleep 1; done
+              i=0
+              while [ "$i" -lt "{{ .messageCount }}" ]; do
+                redis-cli -h redis RPUSH "keda-comparison-{{ .Iteration }}" item >/dev/null
+                i=$((i + 1))
+              done
+          resources:
+            requests:
+              cpu: 5m
+              memory: 8Mi
+            limits:
+              cpu: 100m
+              memory: 32Mi

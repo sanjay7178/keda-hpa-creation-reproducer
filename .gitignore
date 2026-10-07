@@ -1,0 +1,10 @@
+.tools/
+results/
+evidence/
+keda-scaler-comparison-results/
+__pycache__/
+*.pyc
+*.log
+*.pprof
+.env
+*kubeconfig*

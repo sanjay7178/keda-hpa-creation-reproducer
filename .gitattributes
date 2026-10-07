@@ -1,0 +1,2 @@
+# Patch context lines require a leading space before the Go indentation.
+patches/*.patch -whitespace

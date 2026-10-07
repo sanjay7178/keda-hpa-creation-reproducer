@@ -1,0 +1,96 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ .scaler }}-scaledobject-{{ .Iteration }}
+spec:
+  scaleTargetRef:
+    name: {{ .scaler }}-target-{{ .Iteration }}
+  pollingInterval: {{ .pollingInterval }}
+  cooldownPeriod: {{ .cooldownPeriod }}
+  minReplicaCount: 0
+  maxReplicaCount: {{ .maxReplicaCount }}
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 0
+  triggers:
+{{- if eq .scaler "cron" }}
+    - type: cron
+      metadata:
+        timezone: UTC
+        start: {{ .cronStart | quote }}
+        end: {{ .cronEnd | quote }}
+        desiredReplicas: "1"
+{{- else if eq .scaler "prometheus" }}
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus.{{ .namespace }}.svc:9090
+        query: vector({{ .signalValue }})
+        threshold: {{ .threshold | quote }}
+        activationThreshold: "0"
+        ignoreNullValues: "false"
+{{- else if eq .scaler "metrics-api" }}
+    - type: metrics-api
+      metadata:
+        url: http://mock-http.{{ .namespace }}.svc:8080/metrics
+        valueLocation: components.worker.tasks
+        targetValue: {{ .threshold | quote }}
+        activationTargetValue: "0"
+        format: json
+{{- else if eq .scaler "kafka" }}
+    - type: kafka
+      metadata:
+        bootstrapServers: kafka.{{ .namespace }}.svc:9092
+        consumerGroup: keda-comparison-{{ .Iteration }}
+        topic: keda-comparison
+        offsetResetPolicy: earliest
+        lagThreshold: {{ .threshold | quote }}
+        activationLagThreshold: "0"
+        allowIdleConsumers: "true"
+{{- else if eq .scaler "kubernetes-resource" }}
+    - type: kubernetes-resource
+      metadata:
+        resourceKind: ConfigMap
+        resourceName: keda-signal-{{ .Iteration }}
+        key: value
+        format: number
+        targetValue: {{ .threshold | quote }}
+        activationTargetValue: "0"
+{{- else if eq .scaler "opensearch" }}
+    - type: opensearch
+      metadata:
+        addresses: http://mock-http.{{ .namespace }}.svc:8080
+        username: benchmark
+        password: benchmark
+        index: keda-comparison
+        query: '{"query":{"match_all":{}}}'
+        valueLocation: hits.total.value
+        targetValue: {{ .threshold | quote }}
+        activationTargetValue: "0"
+{{- else if eq .scaler "temporal" }}
+    - type: temporal
+      metadata:
+        endpoint: temporal.{{ .namespace }}.svc:7233
+        namespace: default
+        taskQueue: keda-comparison-{{ .Iteration }}
+        queueTypes: workflow
+        targetQueueSize: {{ .threshold | quote }}
+        activationTargetQueueSize: "0"
+{{- else if eq .scaler "redis" }}
+    - type: redis
+      metadata:
+        addressFromEnv: REDIS_ADDRESS
+        listName: keda-comparison-{{ .Iteration }}
+        listLength: {{ .threshold | quote }}
+        activationListLength: "0"
+{{- else if eq .scaler "rabbitmq" }}
+    - type: rabbitmq
+      metadata:
+        hostFromEnv: RABBITMQ_HOST
+        protocol: amqp
+        queueName: keda-comparison-{{ .Iteration }}
+        mode: QueueLength
+        value: {{ .threshold | quote }}
+        activationValue: "0"
+{{- end }}

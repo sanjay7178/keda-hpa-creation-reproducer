@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .scaler }}-target-{{ .Iteration }}
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: {{ .scaler }}-target-{{ .Iteration }}
+  template:
+    metadata:
+      labels:
+        app: {{ .scaler }}-target-{{ .Iteration }}
+    spec:
+      containers:
+        - name: target
+          image: registry.k8s.io/pause:3.10
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: RABBITMQ_HOST
+              value: amqp://keda:keda@rabbitmq.{{ .namespace }}.svc:5672/
+            - name: REDIS_ADDRESS
+              value: redis.{{ .namespace }}.svc:6379
+          resources:
+            requests:
+              cpu: 1m
+              memory: 2Mi
+            limits:
+              cpu: 20m
+              memory: 16Mi

@@ -1,0 +1,229 @@
+metricsEndpoints:
+  - indexer:
+      type: local
+      metricsDirectory: {{ .resultsDir | quote }}
+
+global:
+  gc: false
+
+jobs:
+{{- if or (eq .scaler "metrics-api") (eq .scaler "opensearch") }}
+  - name: http-mock-dependency
+    jobType: create
+    jobIterations: 1
+    qps: 5
+    burst: 10
+    namespacedIterations: false
+    namespace: {{ .namespace }}
+    preLoadImages: {{ .preLoadImages }}
+    waitWhenFinished: true
+    objects:
+      - objectTemplate: examples/workloads/keda-scaler-comparison/templates/http-mock.yml
+        replicas: 1
+        inputVars:
+          mockReplicas: {{ .mockReplicas }}
+          signalValue: {{ .signalValue | quote }}
+{{- end }}
+{{- if eq .scaler "temporal" }}
+  - name: temporal-dependency
+    jobType: create
+    jobIterations: 1
+    qps: 5
+    burst: 10
+    namespacedIterations: false
+    namespace: {{ .namespace }}
+    preLoadImages: {{ .preLoadImages }}
+    waitWhenFinished: true
+    objects:
+      - objectTemplate: examples/workloads/keda-scaler-comparison/templates/temporal.yml
+        replicas: 1
+{{- end }}
+{{- if eq .scaler "prometheus" }}
+  - name: prometheus-dependency
+    jobType: create
+    jobIterations: 1
+    qps: 5
+    burst: 10
+    namespacedIterations: false
+    namespace: {{ .namespace }}
+    preLoadImages: {{ .preLoadImages }}
+    waitWhenFinished: true
+    objects:
+      - objectTemplate: examples/workloads/keda-scaler-comparison/templates/prometheus.yml
+        replicas: 1
+{{- end }}
+{{- if eq .scaler "kafka" }}
+  - name: kafka-dependency
+    jobType: create
+    jobIterations: 1
+    qps: 5
+    burst: 10
+    namespacedIterations: false
+    namespace: {{ .namespace }}
+    preLoadImages: {{ .preLoadImages }}
+    waitWhenFinished: true
+    objects:
+      - objectTemplate: examples/workloads/keda-scaler-comparison/templates/kafka.yml
+        replicas: 1
+        inputVars:
+          namespace: {{ .namespace }}
+
+  - name: kafka-load
+    jobType: create
+    jobIterations: 1
+    qps: 5
+    burst: 10
+    namespacedIterations: false
+    namespace: {{ .namespace }}
+    preLoadImages: {{ .preLoadImages }}
+    waitWhenFinished: true
+    objects:
+      - objectTemplate: examples/workloads/keda-scaler-comparison/templates/kafka-load-job.yml
+        replicas: 1
+        inputVars:
+          messageCount: {{ .signalValue }}
+{{- end }}
+{{- if eq .scaler "redis" }}
+  - name: redis-dependency
+    jobType: create
+    jobIterations: 1
+    qps: 5
+    burst: 10
+    namespacedIterations: false
+    namespace: {{ .namespace }}
+    preLoadImages: {{ .preLoadImages }}
+    waitWhenFinished: true
+    objects:
+      - objectTemplate: examples/workloads/keda-scaler-comparison/templates/redis.yml
+        replicas: 1
+
+  - name: redis-load
+    jobType: create
+    jobIterations: {{ .objects }}
+    qps: {{ .qps }}
+    burst: {{ .burst }}
+    namespacedIterations: false
+    namespace: {{ .namespace }}
+    preLoadImages: {{ .preLoadImages }}
+    waitWhenFinished: true
+    objects:
+      - objectTemplate: examples/workloads/keda-scaler-comparison/templates/redis-load-job.yml
+        replicas: 1
+        inputVars:
+          messageCount: {{ .signalValue }}
+{{- end }}
+{{- if eq .scaler "rabbitmq" }}
+  - name: rabbitmq-dependency
+    jobType: create
+    jobIterations: 1
+    qps: 5
+    burst: 10
+    namespacedIterations: false
+    namespace: {{ .namespace }}
+    preLoadImages: {{ .preLoadImages }}
+    waitWhenFinished: true
+    objects:
+      - objectTemplate: examples/workloads/keda-scaler-comparison/templates/rabbitmq.yml
+        replicas: 1
+
+  - name: rabbitmq-load
+    jobType: create
+    jobIterations: {{ .objects }}
+    qps: {{ .qps }}
+    burst: {{ .burst }}
+    namespacedIterations: false
+    namespace: {{ .namespace }}
+    preLoadImages: {{ .preLoadImages }}
+    waitWhenFinished: true
+    objects:
+      - objectTemplate: examples/workloads/keda-scaler-comparison/templates/rabbitmq-load-job.yml
+        replicas: 1
+        inputVars:
+          messageCount: {{ .signalValue }}
+{{- end }}
+
+  - name: {{ .scaler }}-targets
+    jobType: create
+    jobIterations: {{ .objects }}
+    qps: {{ .qps }}
+    burst: {{ .burst }}
+    namespacedIterations: false
+    namespace: {{ .namespace }}
+    preLoadImages: {{ .preLoadImages }}
+{{- if eq .workloadMode "lifecycle" }}
+    waitWhenFinished: true
+{{- else }}
+    waitWhenFinished: false
+{{- end }}
+    jobPause: {{ .settleDuration }}
+{{- if or (eq .workloadMode "lifecycle") .profileKeda }}
+    measurements:
+{{- if eq .workloadMode "lifecycle" }}
+      - name: scaledObjectLatency
+        thresholds:
+          - conditionType: HPACreated
+            metric: P99
+            threshold: 180s
+          - conditionType: ScaledObjectActive
+            metric: P99
+            threshold: 180s
+          - conditionType: DeploymentReady
+            metric: P99
+            threshold: 180s
+{{- end }}
+{{- if .profileKeda }}
+      - name: pprof
+        pprofInterval: {{ .pprofInterval }}
+        pprofDirectory: {{ .pprofDirectory | quote }}
+        pprofTargets:
+          - name: keda-operator-cpu
+            namespace: keda
+            labelSelector: &pprofClientSelector
+              app: kube-burner-pprof-client
+            url: http://keda-operator.keda.svc.cluster.local:8082/debug/pprof/profile?seconds={{ .pprofCpuSeconds }}
+          - name: keda-operator-heap
+            namespace: keda
+            labelSelector: *pprofClientSelector
+            url: http://keda-operator.keda.svc.cluster.local:8082/debug/pprof/heap
+          - name: keda-metrics-apiserver-cpu
+            namespace: keda
+            labelSelector: *pprofClientSelector
+            url: http://keda-operator-metrics-apiserver.keda.svc.cluster.local:8083/debug/pprof/profile?seconds={{ .pprofCpuSeconds }}
+          - name: keda-metrics-apiserver-heap
+            namespace: keda
+            labelSelector: *pprofClientSelector
+            url: http://keda-operator-metrics-apiserver.keda.svc.cluster.local:8083/debug/pprof/heap
+          - name: keda-webhooks-cpu
+            namespace: keda
+            labelSelector: *pprofClientSelector
+            url: http://keda-admission-webhooks.keda.svc.cluster.local:8084/debug/pprof/profile?seconds={{ .pprofCpuSeconds }}
+          - name: keda-webhooks-heap
+            namespace: keda
+            labelSelector: *pprofClientSelector
+            url: http://keda-admission-webhooks.keda.svc.cluster.local:8084/debug/pprof/heap
+{{- end }}
+{{- end }}
+    objects:
+{{- if eq .scaler "kubernetes-resource" }}
+      - objectTemplate: examples/workloads/keda-scaler-comparison/templates/kubernetes-resource-signal.yml
+        replicas: 1
+        inputVars:
+          signalValue: {{ .signalValue | quote }}
+{{- end }}
+      - objectTemplate: examples/workloads/keda-scaler-comparison/templates/target-deployment.yml
+        replicas: 1
+        inputVars:
+          scaler: {{ .scaler }}
+          namespace: {{ .namespace }}
+      - objectTemplate: examples/workloads/keda-scaler-comparison/templates/scaledobject.yml
+        replicas: 1
+        inputVars:
+          scaler: {{ .scaler }}
+          pollingInterval: {{ .pollingInterval }}
+          cooldownPeriod: {{ .cooldownPeriod }}
+          maxReplicaCount: {{ .maxReplicaCount }}
+          threshold: {{ .threshold | quote }}
+          signalValue: {{ .signalValue | quote }}
+          namespace: {{ .namespace }}
+          cronStart: {{ .cronStart | quote }}
+          cronEnd: {{ .cronEnd | quote }}
