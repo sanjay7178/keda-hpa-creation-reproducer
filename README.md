@@ -1,6 +1,6 @@
 ```bash
 git clone https://github.com/sanjay7178/keda-hpa-creation-reproducer.git
-cd keda-hpa-creation-reproducer
+cd keda-hpa-creation-reproducer || exit 1
 
 # Use the binary from https://github.com/kube-burner/kube-burner/releases
 KUBE_BURNER_VERSION=2.8.6
